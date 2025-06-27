@@ -635,6 +635,22 @@ body,html{
 .resultGroup .result_list .isShowLabel {
     right: 18px;
 }
+.resultGroup .result_list .copyCoordsLabel {
+    /* 复制按钮位于名称和修改中间 */
+    right: 140px;
+    color: #fff;
+    font-size: 14px;
+    position: absolute;
+    top: 0;
+    height: 28px;
+    line-height: 28px;
+    display: block;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.resultGroup .result_list .copyCoordsLabel:hover {
+    color: #20c3f9;
+}
 .resultGroup .result_list.active {
     background: #212b3e;
 }

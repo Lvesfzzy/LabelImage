@@ -779,6 +779,7 @@ class LabelImage {
 				resultListBody.innerHTML = '<span class="result_no">'+ _index +'</span>' +
 					'<span class="result_color" style="background: '+ item.labels.labelColor +';"></span>' +
 					'<input class="result_Name" value="'+ item.labels.labelName +'" disabled>' +
+					'<i class="copyCoordsLabel icon-copy" title="复制坐标"></i>' +
 					'<i class="editLabelName icon-pencil"></i>' +
 					'<i class="deleteLabel icon-trash"></i>' +
 					'<i class="isShowLabel '+ eyeIconClass +'"></i>';
@@ -800,10 +801,17 @@ class LabelImage {
 		resultListBody.innerHTML = '<span class="result_no">'+ resultLength +'</span>' +
 			'<span class="result_color"></span>' +
 			'<input class="result_Name" value="未命名" disabled>' +
+			'<i class="copyCoordsLabel icon-copy" title="复制坐标"></i>' +
 			'<i class="editLabelName icon-pencil"></i>' +
 			'<i class="deleteLabel icon-trash"></i>' +
 			'<i class="isShowLabel '+ eyeIconClass +'"></i>';
 		_nodes.resultGroup.appendChild(resultListBody);
+
+		// 生成随机颜色，每个标注框使用不同的颜色
+		const colorObj = this.getRandomColor();
+		// 设置标注结果每一项的最前面的色块颜色
+		const colorSpan = resultListBody.querySelector('.result_color');
+		if (colorSpan) colorSpan.style.background = colorObj.hex;
 
 		// 轮询获取当前ResultIndex;
 		let resultList = _nodes.resultGroup.getElementsByClassName("result_list");
@@ -829,8 +837,8 @@ class LabelImage {
 				],
 				labels: {
 					labelName: "未命名",
-					labelColor: "red",
-					labelColorRGB: "255,0,0",
+					labelColor: colorObj.hex,
+					labelColorRGB: colorObj.rgb,
 					visibility: _nodes.labelShower.children[0].checked,
 				},
 				labelLocation: this.ComputerLabelLocation(rectMask),
@@ -844,8 +852,8 @@ class LabelImage {
 				{
 					"labels":{
 						labelName: "未命名",
-						labelColor: "red",
-						labelColorRGB: "255,0,0",
+						labelColor: colorObj.hex,
+						labelColorRGB: colorObj.rgb,
 						visibility: _nodes.labelShower.children[0].checked,
 					},
 					"labelLocation": {
@@ -910,6 +918,9 @@ class LabelImage {
 							_self.Arrays.imageAnnotateShower[this.index].labels.visibility = true;
 						}
 						_self.DrawSavedAnnotateInfoToShow();
+						break;
+					case "copyCoordsLabel":
+						_self.copyResultCoordsFromMemory(i);
 						break;
 					default:
 						break;
@@ -1534,6 +1545,65 @@ class LabelImage {
 			});
 		});
 	};
+
+	//----新增：复制 memory 坐标的方法
+	copyResultCoordsFromMemory = function(index) {
+		// imageAnnotateShower 用于页面显示，坐标经过了缩放和平移（受分辨率、缩放、拖拽影响）。
+		// imageAnnotateMemory 始终是原图坐标，导出 JSON、保存、后端训练都用这个。
+		const item = this.Arrays.imageAnnotateMemory[index];
+		if (!item) return;
+		let text = '';
+		// 矩形坐标以 [x1, y1, x2, y2] 格式复制， 多边形坐标以 x1,y1,x2,y2,... 格式复制
+		if (item.contentType === 'rect') {
+			const xs = item.content.map(pt => pt.x);
+			const ys = item.content.map(pt => pt.y);
+			const x1 = Math.min(...xs);
+			const y1 = Math.min(...ys);
+			const x2 = Math.max(...xs);
+			const y2 = Math.max(...ys);
+			text = `[${Math.round(x1)}, ${Math.round(y1)}, ${Math.round(x2)}, ${Math.round(y2)}]`;
+		} else if (item.contentType === 'polygon') {
+			text = item.content.map(pt => `${Math.round(pt.x)},${Math.round(pt.y)}`).join(',');
+		}
+		if (!text) return;
+		this.RecordOperation('copy', '复制坐标: ' + text, index, text);
+		// 使用现代的 Clipboard API
+		if (navigator.clipboard) {
+			navigator.clipboard.writeText(text).then(() => {
+				// alert('坐标已复制: ' + text);
+			}, () => {
+				// 复制失败，使用兼容方案
+				fallbackCopyTextToClipboard(text);
+			});
+		} else {
+			// 浏览器不支持 Clipboard API，使用兼容方案
+			fallbackCopyTextToClipboard(text);
+		}
+		// 兼容方案
+		function fallbackCopyTextToClipboard(text) {
+			const textArea = document.createElement("textarea");
+			textArea.value = text;
+			document.body.appendChild(textArea);
+			textArea.focus();
+			textArea.select();
+			try {
+				document.execCommand('copy');
+				// alert('坐标已复制: ' + text);
+			} catch (err) {
+				alert('复制失败');
+			}
+			document.body.removeChild(textArea);
+		}
+	};
+
+	// 生成随机颜色（返回 {hex, rgb}）
+	getRandomColor = () => {
+		const r = Math.floor(Math.random() * 200) + 30; // 避免太暗
+		const g = Math.floor(Math.random() * 200) + 30;
+		const b = Math.floor(Math.random() * 200) + 30;
+		const hex = '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+		return { hex, rgb: `${r},${g},${b}` };
+	}
 
 	/*
 		画板禁止触发右键菜单事件
